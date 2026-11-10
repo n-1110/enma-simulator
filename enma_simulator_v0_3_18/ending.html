@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#211a34"><title>任期満了 | 閻魔大王シミュレータ</title><link rel="stylesheet" href="css/style.css"></head>
+<body data-page="ending">
+<header class="site-header"><div class="brand"><span class="brand-mark">閻</span><div class="brand-name">地獄庁 <span>／ 閻魔大王シミュレータ</span></div></div><nav class="top-actions"><button class="pixel-button small" onclick="EnmaUI.openCollection()">行いの記録</button><button class="pixel-button small" onclick="EnmaUI.showCredits()">クレジット</button><button class="pixel-button small" onclick="EnmaUI.backToTitle()">タイトルに戻る</button></nav></header>
+<main class="page-center"><section class="pixel-frame ending-card stack"><div class="seal">祝</div><div class="eyebrow">5 PERIODS COMPLETED</div><h1>ひとまず、任期満了。</h1><p>あなたは5期を乗り切りました。地獄の運営が適切だったかどうかは、歴史が判断するでしょう。</p><div class="ai-comment"><strong class="ai-name"><img src="assets/enma-ai.svg" alt=""><span>閻魔AI：</span></strong><span id="endingAI"></span></div><div class="button-row" style="justify-content:center"><button class="pixel-button primary" onclick="EnmaUI.continueAfterClear()">このまま続ける</button><button class="pixel-button" onclick="EnmaUI.backToTitle()">タイトルへ戻る</button></div></section></main>
+<footer class="site-footer">任期満了おめでとうございます。</footer>
+<div class="modal-back" id="modalBack" onclick="if(event.target===this && this.dataset.locked !== '1')EnmaUI.closeModal()"><div class="modal" id="modal"></div></div>
+<script src="js/config.js"></script><script src="js/data.js"></script><script src="js/content.js"></script><script src="js/storage.js"></script><script src="js/game.js"></script><script src="js/ui.js"></script>
+</body></html>

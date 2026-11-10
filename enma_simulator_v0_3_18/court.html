@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#211a34"><title>裁判 | 閻魔大王シミュレータ</title><link rel="stylesheet" href="css/style.css"></head>
+<body data-page="court">
+<header class="site-header">
+  <div class="brand"><span class="brand-mark">閻</span><div class="brand-name">地獄庁 <span>／ 閻魔大王シミュレータ</span></div></div>
+  <nav class="top-actions">
+    <button class="pixel-button small" onclick="EnmaUI.openSave(false)">セーブ・ロード</button>
+    <button class="pixel-button small" onclick="EnmaUI.openCollection()">行いの記録</button>
+    <button class="pixel-button small" onclick="EnmaUI.openHelp('court')">説明</button>
+    <button class="pixel-button small" onclick="EnmaUI.showCredits()">クレジット</button>
+    <button class="pixel-button small" onclick="EnmaUI.backToTitle()">タイトルに戻る</button>
+    
+  </nav>
+</header>
+<main class="court-main">
+  <div class="court-topline"><div class="eyebrow" id="phaseLabel">第一期</div><div class="muted" id="progressText">1 / 5 件目</div></div>
+  <section class="court-scene">
+    <div class="character-card">
+      <img class="character-image" id="ghostSprite" src="assets/soul.svg" alt="亡者のドット絵">
+      <div><div class="character-name" id="ghostName">亡者</div><p class="character-sub" id="ghostSub">本日の被告人</p></div>
+    </div>
+    <section class="case-panel">
+      <div class="case-heading"><div><div class="eyebrow">CASE FILE</div><h2 id="caseName">第1期・第1号</h2></div><span class="case-tag" id="caseTag">一般亡者</span></div>
+      <p class="muted small-text" style="margin:0">生前の行い：</p>
+      <div class="deed-list" id="deeds"></div>
+      <div class="grid2">
+        <div><label for="hellSelect">送り先</label><select id="hellSelect" onchange="EnmaUI.onHellChange()"></select></div>
+        <div id="termInputArea"><label for="yearsInput">刑期（年）</label><input id="yearsInput" type="text" inputmode="numeric" value="1" autocomplete="off" oninput="EnmaUI.onYearsInput()"><p id="termCapNote" class="muted small-text term-cap-note">第一地獄の上限：100年</p></div>
+      </div>
+      <div class="range-wrap" id="rangeWrap"><label for="yearsRange">刑期スライダー</label><input id="yearsRange" type="range" min="1" max="100" step="1" value="1" oninput="EnmaUI.onRangeInput()"></div><p id="heavenTermNote" class="muted small-text hidden">天国へ送る場合、刑期の指定はありません。</p>
+      <div class="row between verdict-controls"><span class="muted small-text">行いを確認して判決を決めてください。</span><button class="pixel-button primary" id="verdictButton" onclick="EnmaUI.confirmVerdict()">判決を確定する</button></div>
+    </section>
+    <div class="character-card">
+      <img class="character-image judge" src="assets/judge.svg" alt="閻魔大王のドット絵">
+      <div><div class="character-name" id="enmaName">閻魔大王</div><p class="character-sub">あなた</p></div>
+    </div>
+  </section>
+</main>
+<div class="modal-back" id="modalBack" onclick="if(event.target===this && this.dataset.locked !== '1')EnmaUI.closeModal()"><div class="modal" id="modal"></div></div>
+<script src="js/config.js"></script><script src="js/data.js"></script><script src="js/content.js"></script><script src="js/storage.js"></script><script src="js/game.js"></script><script src="js/ui.js"></script>
+</body></html>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" shape-rendering="crispEdges">
+<defs>
+ <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#211a37"/><stop offset=".55" stop-color="#3e2349"/><stop offset="1" stop-color="#19162c"/></linearGradient>
+ <pattern id="stone" width="64" height="32" patternUnits="userSpaceOnUse"><rect width="64" height="32" fill="#302b48"/><path d="M0 0H64M0 16H64M32 0V16M12 16V32M52 16V32" stroke="#4a3b60" stroke-width="3"/></pattern>
+</defs>
+<rect width="960" height="540" fill="url(#sky)"/>
+<!-- distant glow -->
+<rect x="0" y="120" width="960" height="240" fill="#622b4b" opacity=".18"/>
+<g fill="#2b2342" stroke="#100e20" stroke-width="8">
+ <path d="M40 70h95v345H40zM185 45h74v370h-74zM700 45h74v370h-74zM825 70h95v345h-95z"/>
+ <path d="M20 70h135v32H20zM165 45h114v32H165zM680 45h114v32H680zM805 70h135v32H805z"/>
+ <path d="M300 65h360v110H300z"/>
+</g>
+<g fill="#55365f" stroke="#171329" stroke-width="6">
+ <path d="M330 180v-70h300v70z"/><path d="M360 110l120-78 120 78z"/>
+ <path d="M410 175v-55h140v55z"/>
+</g>
+<g fill="#d45c48" opacity=".8"><path d="M83 255l10-35 10 35 10-52 12 52zM863 255l10-35 10 35 10-52 12 52z"/></g>
+<!-- chains -->
+<g stroke="#171329" stroke-width="7" fill="none"><path d="M260 0v80q0 30 24 30t24 30v35M690 0v90q0 25-23 25t-23 28v32"/></g>
+<g fill="#8d5b72"><rect x="248" y="95" width="30" height="12"/><rect x="681" y="106" width="30" height="12"/></g>
+<!-- torch pedestals and flame pixels -->
+<g><rect x="112" y="305" width="30" height="105" fill="#4d3855" stroke="#171329" stroke-width="6"/><rect x="98" y="292" width="58" height="18" fill="#946047"/><rect x="116" y="240" width="22" height="54" fill="#f2a34f"/><rect x="124" y="220" width="10" height="34" fill="#ffe18a"/><rect x="100" y="256" width="16" height="26" fill="#e86b45"/></g>
+<g><rect x="818" y="305" width="30" height="105" fill="#4d3855" stroke="#171329" stroke-width="6"/><rect x="804" y="292" width="58" height="18" fill="#946047"/><rect x="822" y="240" width="22" height="54" fill="#f2a34f"/><rect x="830" y="220" width="10" height="34" fill="#ffe18a"/><rect x="806" y="256" width="16" height="26" fill="#e86b45"/></g>
+<!-- floor -->
+<rect y="414" width="960" height="126" fill="url(#stone)"/>
+<rect y="410" width="960" height="12" fill="#9d5d65"/><rect y="422" width="960" height="6" fill="#d68a63"/>
+<g fill="#e65f45"><rect x="0" y="513" width="960" height="27"/><rect x="15" y="500" width="120" height="8"/><rect x="350" y="500" width="90" height="8"/><rect x="720" y="500" width="110" height="8"/></g>
+<g fill="#ffb65a"><rect x="30" y="522" width="34" height="6"/><rect x="170" y="516" width="28" height="7"/><rect x="500" y="520" width="48" height="6"/><rect x="850" y="516" width="40" height="7"/></g>
+<g fill="#5d355e" opacity=".6"><rect x="0" y="40" width="960" height="5"/><rect x="0" y="400" width="960" height="5"/><rect x="0" y="470" width="960" height="5"/></g>
+</svg>

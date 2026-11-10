@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#211a34"><title>就任手続き | 閻魔大王シミュレータ</title><link rel="stylesheet" href="css/style.css"></head>
+<body data-page="appointment">
+<header class="site-header">
+  <div class="brand"><span class="brand-mark">閻</span><div class="brand-name">地獄庁 <span>／ 閻魔大王シミュレータ</span></div></div>
+  <nav class="top-actions"><button class="pixel-button small" onclick="EnmaUI.backToTitle()">タイトルに戻る</button></nav>
+</header>
+<main>
+  <div class="page-title"><div class="eyebrow">APPOINTMENT</div><h1>新任大王の就任手続き</h1></div>
+  <section class="pixel-frame appointment-card">
+    <div class="appointment-intro">
+      <div class="row" style="align-items:center;gap:12px;margin-bottom:8px"><div class="ai-avatar"><img src="assets/enma-ai.svg" alt=""></div><div><div class="eyebrow">UNDERWORLD AI ASSISTANT</div><h2 style="margin:3px 0">閻魔AI</h2></div></div>
+      <p>お初にお目にかかります、新任の大王。私は地獄庁の業務補助AIです。前任者の記録をもとに、裁判と地獄の運営をお手伝いいたします。</p>
+      <h3>主なお仕事</h3>
+      <ul><li>亡者の生前の行いを確認する</li><li>天国または第一〜第八地獄への行き先を決める</li><li>地獄へ送る場合は刑期を決める</li><li>5人の裁判が終わるごとに、地獄の状況を確認する</li><li>全5期を一区切りに、その後も運営を続けられる</li></ul>
+    </div>
+    <div class="appointment-name">
+      <h2>大王のお名前</h2>
+      <p class="muted small-text">裁判画面に表示する名前を決めてください。</p>
+      <label for="rulerNameInput">名前（最大120文字）</label>
+      <input id="rulerNameInput" type="text" maxlength="120" autocomplete="off" placeholder="例：閻魔大王">
+      <div class="avatar-selector">
+        <label>アバター</label>
+        <div id="avatarChoices" class="avatar-choices" role="group" aria-label="アバター選択"></div>
+      </div>
+    </div>
+    <div class="appointment-actions"><button class="pixel-button primary" onclick="EnmaUI.startCourtWithName()">裁判を開始する</button></div>
+  </section>
+</main>
+<div class="modal-back" id="modalBack" onclick="if(event.target===this)EnmaUI.closeModal()"><div class="modal" id="modal"></div></div>
+<script src="js/config.js"></script><script src="js/data.js"></script><script src="js/content.js"></script><script src="js/storage.js"></script><script src="js/game.js"></script><script src="js/ui.js"></script>
+</body></html>
