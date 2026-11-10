@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#211a34">
+  <title>閻魔大王シミュレータ（試作版 0.3.18）</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="home">
+  <header class="site-header">
+    <div class="brand"><span class="brand-mark">閻</span><div class="brand-name">地獄庁 <span>／ 閻魔大王シミュレータ</span></div></div>
+    <div class="top-actions"><button class="pixel-button small" onclick="EnmaUI.openHelp('court')">説明</button><button class="pixel-button small" onclick="EnmaUI.showCredits()">クレジット</button><button class="pixel-button small danger" onclick="EnmaUI.confirmClearAllData()">全てのデータを削除</button></div>
+  </header>
+  <main>
+    <section class="home-hero">
+      <div class="home-content stack">
+        <div class="seal">閻</div>
+        <div class="eyebrow">THE UNDERWORLD ADMINISTRATION</div>
+        <h1>閻魔大王シミュレータ</h1>
+        <p class="home-description">突然、新しい閻魔大王に任命されました。<br>「閻魔AI」とともに、亡者たちを裁いてください。</p>
+        <div class="pixel-frame home-menu stack">
+          <div>
+            <label for="modeSelect">ゲームモード</label>
+            <select id="modeSelect"><option value="normal">ノーマルモード</option><option value="sandbox" disabled>サンドボックスモード（未実装）</option></select>
+          </div>
+          <div class="home-buttons">
+            <button class="pixel-button primary" id="startGame">新しい裁判を始める</button>
+            <button class="pixel-button" id="continueGame">セーブデータから再開</button>
+            <button class="pixel-button" id="endingsButton">エンディング一覧</button>
+          </div>
+          <p class="muted small-text" style="margin:0">試作版 0.3.18</p>
+        </div>
+      </div>
+      <div class="home-judge" aria-label="閻魔大王">
+        <img class="character-image judge" src="assets/judge.svg" alt="閻魔大王のドット絵">
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">非公式ファンゲームの試作プロトタイプ / 動画ネタ・特別NPCは二次創作要素です。</footer>
+  <div class="modal-back" id="modalBack" onclick="if(event.target===this)EnmaUI.closeModal()"><div class="modal" id="modal"></div></div>
+  <script src="js/config.js"></script><script src="js/data.js"></script><script src="js/content.js"></script><script src="js/storage.js"></script><script src="js/game.js"></script><script src="js/ui.js"></script>
+</body></html>
