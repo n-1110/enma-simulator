@@ -31,7 +31,13 @@ const ORIGINAL_DEEDS = [
  {id:'o23',name:'他人の作品を無断で自作として販売した',desc:'作者の許可なく作品を自分のものとして販売し、少額の利益を得ていた。',targetHell:2},
  {id:'o24',name:'事故の責任を部下に押しつけた',desc:'自分の指示が原因だと知りながら、立場の弱い人に責任を負わせた。',targetHell:3},
  {id:'o25',name:'共用スペースの掲示板に古いチラシを貼ったままにした',desc:'掲示期限が過ぎていることに気付いていたが、剥がすのが面倒で、そのままにしていた。',targetHell:1},
- {id:'o26',name:'多くの人を巻き込む大規模な破壊を計画した',desc:'被害が広範囲に及ぶと分かっていながら、計画的に実行した。',targetHell:8}
+ {id:'o26',name:'多くの人を巻き込む大規模な破壊を計画した',desc:'被害が広範囲に及ぶと分かっていながら、計画的に実行した。',targetHell:8},
+ {id:'o27',name:'共有の充電器を返さず独占した',desc:'共用の充電器を借りたまま返さず、ほかの人が使えない状態にしていた。',targetHell:1},
+ {id:'o28',name:'頼まれた伝言を何度も伝え忘れた',desc:'大切な伝言を預かったのに、後回しにして何度も伝え忘れていた。',targetHell:1},
+ {id:'o29',name:'列に並んでいる人の順番を横取りした',desc:'待っている人がいると分かっていながら、何食わぬ顔で列に割り込んだ。',targetHell:2},
+ {id:'o30',name:'共有ファイルを確認せず古い内容で上書きした',desc:'ほかの人が更新した内容を確認せず、古いファイルで上書きしてしまった。',targetHell:2},
+ {id:'o31',name:'予約を無断でキャンセルし連絡もしなかった',desc:'店や相手が準備していると分かっていながら、予約を無断で取り消し連絡もしなかった。',targetHell:3},
+ {id:'o32',name:'他人のアイデアを自分の発案として提案した',desc:'相手から聞いたアイデアを、本人に断りなく自分が考えたものとして発表した。',targetHell:3}
 ];
 
 // 善行・日常の行動：妥当な行き先はすべて天国（targetHell: 0）です。
@@ -91,6 +97,36 @@ const NAMED_NPC_TEMPLATES = [
 // NPCの固有行為にも、一覧検索用のkind・npcId・sourceLabelを追加します。
 const NAMED_NPC_DEEDS = NAMED_NPC_TEMPLATES.map(npc => ({...npc.deed,kind:'namedNpc',npcId:npc.id,sourceLabel:'動画由来キャラクターの行い'}));
 
+// 嘘として表示する文章。通常の行いとは別に管理し、元のtargetHell=0の行いを誤字化した2種類を用意します。
+// 動画ネタ由来の行いは含めず、オリジナル・善行/日常行動のtargetHell=0だけを使います。
+const LIE_NAME_VARIANTS = {
+  o03: ['冷蔵庫のプリンに名前を書いたがが食べられた', '冷蔵庫のプリンに名前を書いたが合べられた'],
+  g01: ['落とし物の財布を交番にに届けた', '落とし物の財布を交番に届てけた'],
+  g02: ['体調を崩した同僚の仕事を代わりに引き受けたた', '体調を崩した同僚の仕事を代わりにき受けた'],
+  g03: ['災害時にに近所の人へ水や食料を分けた', '災害時に近所の人へ水や食料を分けあた'],
+  g04: ['迷子を見つけて家族と合流するまで付き添っった', '迷子を見つけて家族と合流するまで付添た'],
+  g05: ['誰も見ていないいところで共有スペースを掃除した', '誰も見ていないところで共有スペースを掃除しった'],
+  g06: ['エレベーターで開ボタンを押しして全員を待った', 'エレベーターで開ボタンを押して全員を待っだ'],
+  g07: ['道端の花に毎朝水をあげていたた', '道端の花に毎朝水をあげでいた'],
+  g08: ['落ちていいた空き缶を拾ってごみ箱に入れた', '落ちていた空き缶を拾ってごみ箱に人れた'],
+  g09: ['休日の予定を立てたたが、結局一日中昼寝をした', '休日の予定を立たてが、結局一日中昼寝をした'],
+  g10: ['雲の形を見て勝手に名前を付けたた', '雲の形を見に勝手て名前を付けた'],
+  g11: ['自動販売機の前でで飲み物を5分間悩んだ', '自動販売機の前で飲み物をし分間悩んだ'],
+  g12: ['散歩中に同じ道を3回通ったた', '散歩中に同じ道を3回通た']
+};
+const LIE_DEEDS = [...ORIGINAL_DEEDS, ...NEUTRAL_DEEDS]
+  .filter(deed => deed.targetHell === 0 && LIE_NAME_VARIANTS[deed.id])
+  .flatMap(deed => LIE_NAME_VARIANTS[deed.id].map((name, index) => ({
+    id: `lie_${deed.id}_${index + 1}`,
+    sourceId: deed.id,
+    name,
+    desc: deed.desc,
+    targetHell: 0,
+    kind: 'lie',
+    sourceLabel: '虚偽の申告'
+  })));
+const LIE_DEED_BY_ID = Object.fromEntries(LIE_DEEDS.map(deed => [deed.id, deed]));
+
 // すべての行いを1つにまとめ、IDから素早く検索できる辞書も作ります。
 const ALL_DEEDS = [
  ...ORIGINAL_DEEDS.map(d=>({...d,kind:'original',sourceLabel:'オリジナル'})),
@@ -101,5 +137,5 @@ const ALL_DEEDS = [
 const DEED_BY_ID = Object.fromEntries(ALL_DEEDS.map(d=>[d.id,d]));
 
 
-return { ORIGINAL_DEEDS, NEUTRAL_DEEDS, ANONYMOUS_VIDEO_DEEDS, NAMED_NPC_TEMPLATES, NAMED_NPC_DEEDS, ALL_DEEDS, DEED_BY_ID };
+return { ORIGINAL_DEEDS, NEUTRAL_DEEDS, ANONYMOUS_VIDEO_DEEDS, NAMED_NPC_TEMPLATES, NAMED_NPC_DEEDS, ALL_DEEDS, DEED_BY_ID, LIE_DEEDS, LIE_DEED_BY_ID };
 })();

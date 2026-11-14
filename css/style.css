@@ -110,7 +110,26 @@ select:focus, input:focus { border-color: var(--gold); }
 .character-card { display: flex; flex-direction: column; align-items: center; justify-content: end; text-align: center; padding: 10px 7px 15px; min-width: 0; }
 .character-image { display: block; width: clamp(78px, 9vw, 126px); height: auto; max-height: 225px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(5px 6px 0 #100b1a); }
 .character-image.judge { width: clamp(102px, 12vw, 158px); max-height: 260px; }
-.character-name { margin: 7px 0 3px; color: var(--gold); font-weight: 900; text-shadow: 2px 2px #1b1325; }
+.character-label { width: 100%; min-width: 0; }
+/* 亡者名は従来どおりキャラクターカード内に表示し、表示高さも通常の名前欄に制限します。 */
+.character-name {
+  margin: 7px 0 3px; color: var(--gold); font-weight: 900; text-shadow: 2px 2px #1b1325;
+  line-height: 1.5; max-height: 3em; overflow: hidden; overflow-wrap: anywhere;
+}
+/* 閻魔大王名のためのレイアウト用スペース。名前本体は下の画面全体レイヤーに表示します。 */
+.character-name-slot { position: relative; width: 100%; height: 1.5em; flex: 0 0 1.5em; margin: 7px 0 3px; }
+.enma-name-viewport {
+  /* 画面全体をクリップ領域にし、名前が画面の外へ出た部分だけを隠します。 */
+  position: fixed; inset: 0; z-index: 12;
+  width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; pointer-events: none;
+}
+.enma-name-text {
+  /* 名前の中心だけを従来の名前欄の中心に合わせ、幅は画面幅いっぱいにします。 */
+  position: absolute; top: var(--enma-name-center-y, 50%); left: var(--enma-name-center-x, 50%);
+  transform: translate(-50%, -50%); width: 100vw; max-height: none; overflow: visible; margin: 0;
+  color: var(--gold); font-weight: 900; text-shadow: 2px 2px #1b1325;
+  line-height: 1.5; overflow-wrap: anywhere; text-align: center;
+}
 .character-sub { margin: 0; color: #e1d0d9; font-size: .78rem; line-height: 1.5; }
 .case-panel { align-self: center; min-width: 0; padding: clamp(13px,2vw,21px); background: #1b172cf2; border: 4px solid #c08a5a; box-shadow: inset 0 0 0 3px #100d1d, 0 5px 0 #100d1d; }
 .case-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
@@ -165,6 +184,7 @@ input[type="range"] { width: 100%; accent-color: #e5ae59; cursor: pointer; }
   .home-judge .character-sub { display: none; }
   .court-scene { grid-template-columns: 1fr; gap: 6px; }
   .character-card { flex-direction: row; justify-content: center; gap: 12px; min-height: 118px; }
+  .character-label { flex: 1 1 0; width: auto; }
   .character-image { width: 68px; max-height: 105px; }
   .character-image.judge { width: 84px; max-height: 116px; }
   .case-panel { order: 2; }
@@ -209,6 +229,13 @@ body[data-page="court"] .site-footer { display: none; }
 .deed-card p { font-size: .8rem; line-height: 1.42; }
 .verdict-controls { margin-top: 8px !important; justify-content: flex-end; }
 .verdict-controls .muted { margin-right: auto; font-size: .76rem; }
+.verdict-action-buttons { justify-content: flex-end; gap: 8px; }
+.lie-feedback { margin-top: 9px; padding: 8px 10px; border: 2px solid #7d6494; background: #2d2342; font-size: .84rem; line-height: 1.55; }
+.lie-feedback p { margin: 0; }
+.lie-feedback p + p { margin-top: 5px; }
+.lie-feedback b { color: #e9c98c; }
+.lie-feedback-ai { color: #d8c9ed; }
+.deed-card.deed-revealed { border-color: #e5ae59; background: #59402f; box-shadow: inset 0 0 0 2px #382333, 0 0 0 1px #e5ae59; }
 #yearsInput, #hellSelect { padding-top: 7px; padding-bottom: 7px; }
 body[data-page="court"] main { padding-bottom: 10px; }
 /* 判決結果モーダル */
@@ -240,8 +267,9 @@ body[data-page="court"] main { padding-bottom: 10px; }
   /* モバイル画面では、判決結果のキャラクターと内容を縦に並べます。 */
   .verdict-modal-body { grid-template-columns: 1fr; }
   .verdict-soul { height: 115px; }
-  .verdict-soul-wrap { display: grid; grid-template-columns: 90px 1fr; }
+  .verdict-soul-wrap { display: grid; grid-template-columns: 90px minmax(0, 1fr); align-items: center; column-gap: 12px; }
   .verdict-soul-name { grid-column: 1 / -1; }
+  .speech-bubble::before { top: calc(50% - 7px); left: -9px; transform: rotate(-45deg); }
 }
 
 /* 新任大王の就任手続き画面 */
@@ -376,7 +404,7 @@ body[data-page="gameover"] .page-center {
   position: relative; isolation: isolate; display: flex; align-items: end; justify-content: center;
   min-height: min(54vh, 410px); padding: 50px 22px 24px; overflow: hidden;
   border: 4px solid #a97956; box-shadow: inset 0 0 0 3px #171225, 0 6px 0 #100d1a;
-  background-position: center; background-size: cover;
+  background-position: center; background-size: cover; cursor: crosshair; touch-action: manipulation;
 }
 .hell-scene::before {
   content: ""; position: absolute; inset: 0; z-index: -1; opacity: .52;
@@ -397,6 +425,7 @@ body[data-page="gameover"] .page-center {
 .hell-scene-7 { background-image: linear-gradient(180deg, #45405e 0%, #30243e 52%, #130f22 100%); }
 .hell-scene-8 { background-image: linear-gradient(180deg, #28263d 0%, #1c1a30 52%, #0d0b18 100%); }
 .hell-scene-label {
+  pointer-events: none;
   position: absolute; top: 12px; left: 14px; padding: 5px 9px;
   color: #ffe4a2; background: #171225cc; border: 2px solid #a97956;
   font-weight: 900; letter-spacing: .06em;
@@ -409,14 +438,51 @@ body[data-page="gameover"] .page-center {
   gap: 2px 4px; width: 100%; min-height: 250px;
   padding: 18px 12px 4px;
 }
-.hell-inmate-sprite {
+.hell-inmate-actor {
   position: relative; left: var(--sprite-x, 0px); top: var(--sprite-y, 0px);
-  justify-self: center; align-self: end;
-  display: block; width: 43px; height: 62px; object-fit: contain;
+  justify-self: center; align-self: end; display: block;
+  width: 43px; height: 62px; cursor: crosshair;
+}
+.hell-inmate-body {
+  position: absolute; inset: 0; display: block; transform-origin: center center;
+  transition: transform .12s steps(2, end);
+}
+.hell-inmate-sprite {
+  display: block; width: 100%; height: 100%; object-fit: contain;
   image-rendering: pixelated; filter: drop-shadow(3px 4px 0 #100b1a);
 }
+.hell-inmate-facing-right.is-damaged .hell-inmate-body { transform: rotate(90deg); }
+.hell-inmate-facing-left.is-damaged .hell-inmate-body { transform: rotate(-90deg); }
+.hell-inmate-reaction {
+  position: absolute; z-index: 3; top: -24px; left: 50%; transform: translateX(-50%) scale(.8);
+  display: block; padding: 2px 5px; border: 2px solid #a97956; border-radius: 3px;
+  color: #291b2a; background: #ffe5a5; font-size: .68rem; font-weight: 900;
+  white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s;
+}
+.hell-inmate-reaction.show { opacity: 1; transform: translateX(-50%) scale(1); }
 .hell-inmate-horizontal { animation: soulPixelNudgeHorizontal 1.2s steps(1, end) infinite; }
 .hell-inmate-vertical { animation: soulPixelNudgeVertical 1.2s steps(1, end) infinite; }
+.hell-inmate-actor.is-damaged { animation-play-state: paused; }
+.hell-meteor {
+  position: absolute; z-index: 8; width: 62px; height: 68px; object-fit: contain;
+  image-rendering: pixelated; pointer-events: none;
+  transform: translate(-50%,-50%); animation: meteorFall .62s cubic-bezier(.22,.7,.3,1) forwards;
+  filter: drop-shadow(0 0 5px #ff763f);
+}
+.hell-meteor-impact {
+  position: absolute; z-index: 7; width: 48px; height: 48px; pointer-events: none;
+  border: 3px solid #ffe4a2; border-radius: 50%; box-shadow: 0 0 14px 5px #ff763f99;
+  transform: translate(-50%,-50%) scale(.2); animation: meteorImpact .42s ease-out forwards;
+}
+@keyframes meteorFall {
+  0% { opacity: 0; transform: translate(calc(-50% + var(--meteor-start-x, -160px)), calc(-50% + var(--meteor-start-y, -160px))) scale(.7); }
+  14% { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%,-50%) scale(1.05); }
+}
+@keyframes meteorImpact {
+  0% { opacity: 1; transform: translate(-50%,-50%) scale(.2); }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.6); }
+}
 @keyframes soulPixelNudgeHorizontal {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(1px); }
@@ -429,6 +495,10 @@ body[data-page="gameover"] .page-center {
   50% { transform: translateY(0); }
   75% { transform: translateY(-1px); }
 }
+
+.hell-scene.effects-disabled .hell-inmate-actor { animation: none !important; }
+.hell-scene.effects-disabled .hell-meteor { animation: none !important; transform: translate(-50%,-50%) !important; }
+.hell-scene.effects-disabled .hell-meteor-impact { display: none !important; }
 .hell-empty { align-self: center; padding: 20px; color: #f1dcae; text-align: center; font-weight: 800; }
 
 /* 判決履歴：内部評価は載せず、実際に表示した判決情報と反応だけを表示 */
@@ -453,12 +523,45 @@ body[data-page="gameover"] .page-center {
 @media (max-width: 560px) {
   .hell-scene { min-height: 260px; padding: 44px 10px 18px; }
   .hell-inmate-grid { grid-template-columns: repeat(var(--inmate-columns, 5), minmax(0, 1fr)); grid-template-rows: repeat(var(--inmate-rows, 3), minmax(68px, 1fr)); min-height: 220px; gap: 2px 2px; padding-right: 6px; padding-left: 6px; }
-  .hell-inmate-sprite { width: 36px; height: 54px; }
+  .hell-inmate-actor { width: 36px; height: 54px; }
   .review-next-row .button-row { flex-direction: column; }
   .review-next-row .button-row .pixel-button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hell-inmate-sprite { animation: none; }
+  .hell-inmate-actor { animation: none; }
 }
 
 .event-ai-comment { margin-top: 7px; padding: 6px 9px; border-width: 2px; font-size: .8rem; line-height: 1.35; }
+
+
+/* サンドボックスの個別設定 */
+.sandbox-settings-modal { width: min(720px, 100%); }
+.sandbox-settings-section { margin: 15px 0; padding: 12px 13px; border: 2px solid #604761; background: #211b35; }
+.sandbox-settings-section h3 { margin-bottom: 10px; color: var(--gold); }
+.sandbox-setting-field { margin: 12px 0; }
+.sandbox-setting-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sandbox-setting-heading label { margin: 0 0 5px; }
+.sandbox-setting-heading output { color: #ffe5a5; font-weight: 900; white-space: nowrap; }
+.sandbox-setting-field input[type="range"] { width: 100%; accent-color: #d89a4d; }
+.sandbox-setting-field select { margin-top: 5px; }
+.sandbox-setting-field p { margin: 4px 0 0; }
+.sandbox-setting-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0; padding: 9px 10px; border: 1px solid #604761; background: #2a223b; cursor: pointer; }
+.sandbox-setting-toggle input { flex: 0 0 auto; width: 18px; height: 18px; margin: 2px 0 0; accent-color: #d89a4d; }
+.sandbox-setting-toggle span { display: grid; gap: 3px; }
+.sandbox-setting-toggle small { color: var(--muted); line-height: 1.45; }
+.sandbox-settings-saved { min-height: 1.2em; margin: 4px 0 0; color: #a9d8ad; font-size: .8rem; }
+.lie-result-modal { width: min(560px, 100%); }
+.lie-result-reaction { margin: 14px 0; padding: 12px 14px; border: 3px solid #a97956; background: #ffe5a5; color: #291b2a; }
+.lie-result-reaction p { margin: 5px 0 0; font-weight: 900; font-size: 1.08rem; }
+.lie-result-ai { margin: 12px 0; }
+
+/* サンドボックスでは混雑ゲージだけがカード外へ伸び、ページ幅は変わりません。 */
+html, body { overflow-x: clip; }
+body.sandbox-mode .hell-review-panel { clip-path: none; overflow: visible; }
+body.sandbox-mode .hell-review-panel .hell-list,
+body.sandbox-mode .hell-review-panel .hell-row,
+body.sandbox-mode .hell-review-panel .hell-row-button,
+body.sandbox-mode .hell-review-panel .pixel-meter { overflow: visible; }
+body.sandbox-mode .hell-review-panel .pixel-meter i { max-width: none; }
+body.sandbox-mode .hell-review-panel .hell-row { position: relative; z-index: 1; }
+body.sandbox-mode .hell-review-panel .hell-row-heading { position: relative; z-index: 2; }

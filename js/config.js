@@ -31,6 +31,7 @@ window.EnmaConfig = {
   // セーブ・出現率・刑期入力の安全上限
   saveSlots: 3,
   namedNpcChance: 0.05,
+  lieChance: 0.15, // 通常亡者が虚偽の申告をする確率
   maxInputDigits: 1000
 };
 

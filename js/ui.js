@@ -1,9 +1,13 @@
 /* 画面描画と操作イベント。HTMLごとの data-page に応じて必要な処理だけ実行します。 */
 (() => {
   const G = window.EnmaGame, S = window.EnmaStorage, C = window.EnmaConfig;
-  const D = window.EnmaData, H = window.EnmaHellNames;
+  const D = window.EnmaData, H = window.EnmaHellNames, CONTENT = window.EnmaContent;
   const $ = id => document.getElementById(id);
   const page = document.body.dataset.page;
+  if (page === 'court') {
+    window.addEventListener('resize', () => requestAnimationFrame(fitCourtCharacterNames), { passive: true });
+    window.addEventListener('scroll', () => requestAnimationFrame(fitCourtCharacterNames), { passive: true });
+  }
   const esc = G.escapeHtml;
 
   // 現在のモードは画面をまたいで引き継ぐため、ゲーム進行データとは別に保存します。
@@ -130,6 +134,71 @@
     back.classList.add('show');
   }
   function closeModal() { const back = $('modalBack'); if (back) { back.classList.remove('show'); back.dataset.locked = '0'; } }
+
+
+  function updateSandboxMenuButton() {
+    const button = $('sandboxSettingsButton');
+    const isSandbox = G.state?.mode === 'sandbox';
+    if (button) button.classList.toggle('hidden', !isSandbox);
+    document.body.classList.toggle('sandbox-mode', isSandbox);
+  }
+
+  function previewSandboxSlider(name, rawValue) {
+    const output = $(`sandboxSettingValue_${name}`);
+    if (!output) return;
+    const value = Number(rawValue);
+    if (name === 'namedNpcChance' || name === 'lieChance') output.textContent = `${value}%`;
+    else output.textContent = `${value}人`;
+  }
+
+  function openSandboxSettings() {
+    if (G.state?.mode !== 'sandbox') return;
+    const s = G.getSandboxSettings();
+    const slider = (key, label, min, max, step, unit, help) => `
+      <div class="sandbox-setting-field">
+        <div class="sandbox-setting-heading"><label for="sandboxSetting_${key}">${label}</label><output id="sandboxSettingValue_${key}">${s[key]}${unit}</output></div>
+        <input id="sandboxSetting_${key}" type="range" min="${min}" max="${max}" step="${step}" value="${s[key]}"
+          oninput="EnmaUI.previewSandboxSlider('${key}',this.value)" onchange="EnmaUI.setSandboxSetting('${key}',this.value)">
+        <p class="muted small-text">${help}</p>
+      </div>`;
+    const toggle = (key, label, description) => `
+      <label class="sandbox-setting-toggle"><input type="checkbox" ${s[key] ? 'checked' : ''} onchange="EnmaUI.setSandboxSetting('${key}',this.checked)">
+        <span><b>${label}</b><small>${description}</small></span></label>`;
+    showModal(`<div class="modal-heading"><h2>サンドボックス設定</h2><button class="pixel-button" onclick="EnmaUI.closeModal()">閉じる</button></div>
+      <p class="muted small-text">設定はこのセーブデータに保存されます。スライダーなどを変更すると自動で保存されます。</p>
+      <section class="sandbox-settings-section"><h3>進行・イベント</h3>
+        ${toggle('skipStaffEvent', '獄卒イベントをスキップ', '現在の期には影響せず、次の期から反映されます。')}
+        ${toggle('skipReview', '振り返りをスキップ', '現在の期には影響せず、次の期から反映されます。')}
+        ${slider('casesPerPeriod', '1期あたりの亡者数', 1, 10, 1, '人', '現在の期は人数を変更せず、次の期から適用します。')}
+      </section>
+      <section class="sandbox-settings-section"><h3>亡者の出現</h3>
+        ${slider('namedNpcChance', '名前付き亡者の出現率', 0, 100, 1, '%', '次に出現する亡者の抽選から反映します。')}
+        ${slider('namedNpcLimit', '名前付き亡者の1期あたり上限', 0, 5, 1, '人', '現在の期の上限は変更せず、次の期から適用します。')}
+        ${slider('lieChance', '嘘つき亡者の出現率', 0, 100, 1, '%', '次に出現する亡者の抽選から反映します。')}
+      </section>
+      <section class="sandbox-settings-section"><h3>地獄の様子</h3>
+        <div class="sandbox-setting-field"><label for="sandboxSetting_hellDisplayDivisor">亡者の表示割合</label>
+          <select id="sandboxSetting_hellDisplayDivisor" onchange="EnmaUI.setSandboxSetting('hellDisplayDivisor',this.value)">
+            <option value="1" ${s.hellDisplayDivisor === 1 ? 'selected' : ''}>÷1（全員）</option>
+            <option value="2" ${s.hellDisplayDivisor === 2 ? 'selected' : ''}>÷2（半数）</option>
+            <option value="3" ${s.hellDisplayDivisor === 3 ? 'selected' : ''}>÷3（3分の1）</option>
+            <option value="4" ${s.hellDisplayDivisor === 4 ? 'selected' : ''}>÷4（4分の1）</option>
+          </select><p class="muted small-text">次に地獄の様子を開いたときから反映します。</p>
+        </div>
+        ${slider('hellDisplayMax', '亡者の表示上限', 30, 80, 5, '人', '実際の表示人数の上限です。標準は50人です。')}
+        ${toggle('hellEffects', '地獄の様子の演出', '有効にすると亡者が動き、隕石や着弾エフェクトがアニメーションします。無効でも隕石の命中と倒れる表示は動作します。')}
+      </section>
+      <p class="muted small-text">変更内容はこのセーブデータにだけ適用されます。別のサンドボックスデータには影響しません。</p><p id="sandboxSettingsSaved" class="sandbox-settings-saved" aria-live="polite"></p>`, false, 'sandbox-settings-modal');
+  }
+
+  function setSandboxSetting(name, value) {
+    if (!G.setSandboxSetting(name, value)) return;
+    const modal = $('modal');
+    const output = modal?.querySelector(`#sandboxSettingValue_${name}`);
+    if (output) previewSandboxSlider(name, value);
+    const notice = $('sandboxSettingsSaved');
+    if (notice) notice.textContent = '保存しました';
+  }
   // 同じモードで見たことのある行いを一覧表示します。
   function openCollection() {
     const mode = G.state?.mode || currentMode();
@@ -149,36 +218,126 @@
   function openHellView(hellNumber) {
     if (!G.state || !Number.isInteger(hellNumber) || hellNumber < 1 || hellNumber > 8) return;
     const inmates = G.state.hellInmates[hellNumber - 1] || [];
-    // 表示数は実人数の約半数。固定の5×3マスから毎回異なるセルを抽選し、配置自体をランダムにします。
-    // 同じセルは使わず、セル内の位置にも小さなばらつきを加えるため、亡者同士は重なりません。
-    const spriteCount = Math.ceil(inmates.length / 2);
-    const columns = 5;
-    const rows = 3;
+    const sandbox = G.state.mode === 'sandbox';
+    const settings = sandbox ? G.getSandboxSettings() : null;
+    const divisor = sandbox ? settings.hellDisplayDivisor : 1;
+    // ノーマルモードは÷1で全員を表示します。サンドボックスのみ設定上限を適用します。
+    const displayLimit = sandbox ? settings.hellDisplayMax : Math.max(1, inmates.length);
+    const spriteCount = Math.min(displayLimit, Math.ceil(inmates.length / divisor));
+    const columns = sandbox ? (window.innerWidth < 560 ? 5 : 10) : 5;
+    const rows = Math.max(1, Math.ceil(spriteCount / columns));
     const slots = Array.from({ length: columns * rows }, (_, index) => index);
     for (let i = slots.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [slots[i], slots[j]] = [slots[j], slots[i]];
     }
     const chosenSlots = slots.slice(0, spriteCount);
+    const effectsEnabled = !sandbox || settings.hellEffects;
     const sprites = chosenSlots.map((slot, index) => {
-      const horizontal = Math.random() < 0.5;
-      const x = Math.round(Math.random() * 12 - 6);
-      const y = Math.round(Math.random() * 10 - 5);
-      const motion = horizontal ? 'horizontal' : 'vertical';
+      const facingLeft = Math.random() < 0.5;
+      const baseImage = facingLeft ? 'soul-left.svg' : 'soul.svg';
+      const horizontalSpread = Math.min(30, Math.floor(window.innerWidth / (columns * 4.5)));
+      const x = Math.round(Math.random() * horizontalSpread * 2 - horizontalSpread);
+      const y = Math.round(Math.random() * 28 - 14);
+      const motion = effectsEnabled ? (Math.random() < 0.5 ? 'hell-inmate-horizontal' : 'hell-inmate-vertical') : '';
       const column = (slot % columns) + 1;
       const row = Math.floor(slot / columns) + 1;
-      return `<img class="hell-inmate-sprite hell-inmate-${motion}"
-        src="assets/soul.svg" alt="亡者" draggable="false" data-sprite="${index + 1}"
-        style="grid-column:${column};grid-row:${row};--sprite-x:${x}px;--sprite-y:${y}px">`;
+      return `<span class="hell-inmate-actor ${motion} hell-inmate-facing-${facingLeft ? 'left' : 'right'}" data-base-image="${baseImage}"
+        style="grid-column:${column};grid-row:${row};--sprite-x:${x}px;--sprite-y:${y}px">
+        <span class="hell-inmate-body"><img class="hell-inmate-sprite" src="assets/${baseImage}" alt="亡者" draggable="false" data-sprite="${index + 1}"></span>
+        <span class="hell-inmate-reaction" aria-live="polite">うわー！</span>
+      </span>`;
     }).join('');
     const sceneContent = spriteCount
-      ? `<div class="hell-inmate-grid" style="--inmate-columns:${columns};--inmate-rows:${rows}">${sprites}</div>`
+      ? `<div class="hell-inmate-grid" style="--inmate-columns:${columns};--inmate-rows:${rows};--inmate-count:${spriteCount}">${sprites}</div>`
       : '<div class="hell-empty">現在、この地獄に亡者はいません。</div>';
+    const displayNote = sandbox
+      ? `表示割合：亡者数÷${divisor}（最大${displayLimit}人）／現在の収容人数：${inmates.length}人`
+      : 'この地獄に収容されている亡者を表示しています。';
     showModal(`<div class="modal-heading"><h2>${H[hellNumber]}の様子</h2><button class="pixel-button" onclick="EnmaUI.closeModal()">閉じる</button></div>
-      <p class="muted small-text">収容区画の一部の様子を表示しています。</p>
-      <div class="hell-scene hell-scene-${hellNumber}" role="img" aria-label="${H[hellNumber]}の収容区画">
+      <p class="muted small-text">${displayNote}画面をクリックすると、その場所に隕石を落とせます。</p>
+      <div class="hell-scene hell-scene-${hellNumber} ${effectsEnabled ? '' : 'effects-disabled'}" role="application" tabindex="0" aria-label="${H[hellNumber]}の収容区画。クリックした場所に隕石を落とせます。" data-effects-enabled="${effectsEnabled ? '1' : '0'}">
         <div class="hell-scene-label">${H[hellNumber]}</div>${sceneContent}
       </div>`, false, 'hell-modal');
+    setupMeteorInteraction($('modal').querySelector('.hell-scene'));
+  }
+
+  // クリック地点に向かって左上から斜めに隕石を落とし、広めの範囲で命中判定します。
+  function setupMeteorInteraction(scene) {
+    if (!scene) return;
+    scene.addEventListener('click', event => {
+      const sceneRect = scene.getBoundingClientRect();
+      const impactX = Math.max(8, Math.min(sceneRect.width - 8, event.clientX - sceneRect.left));
+      const impactY = Math.max(8, Math.min(sceneRect.height - 8, event.clientY - sceneRect.top));
+      const meteor = document.createElement('img');
+      meteor.className = 'hell-meteor';
+      meteor.src = 'assets/meteor.png';
+      meteor.alt = '';
+      meteor.setAttribute('aria-hidden', 'true');
+      meteor.style.left = `${impactX}px`;
+      meteor.style.top = `${impactY}px`;
+      const diagonalOffset = Math.max(120, Math.min(210, Math.round(Math.min(sceneRect.width, sceneRect.height) * 0.42)));
+      meteor.style.setProperty('--meteor-start-x', `${-diagonalOffset}px`);
+      meteor.style.setProperty('--meteor-start-y', `${-diagonalOffset}px`);
+      scene.append(meteor);
+
+      // 隕石の大きさに合わせ、以前より約1.7倍広い範囲で命中判定します。
+      let hitActor = null;
+      let hitDistance = Infinity;
+      for (const actor of scene.querySelectorAll('.hell-inmate-actor')) {
+        if (actor.classList.contains('is-damaged')) continue;
+        const sprite = actor.querySelector('.hell-inmate-sprite');
+        const rect = sprite.getBoundingClientRect();
+        const aspect = 24 / 20;
+        let bodyWidth = rect.width;
+        let bodyHeight = bodyWidth / aspect;
+        if (bodyHeight > rect.height) {
+          bodyHeight = rect.height;
+          bodyWidth = bodyHeight * aspect;
+        }
+        const bodyLeft = rect.left + (rect.width - bodyWidth) / 2;
+        const bodyTop = rect.top + (rect.height - bodyHeight) / 2;
+        const tolerance = 35;
+        const inside = event.clientX >= bodyLeft - tolerance && event.clientX <= bodyLeft + bodyWidth + tolerance
+          && event.clientY >= bodyTop - tolerance && event.clientY <= bodyTop + bodyHeight + tolerance;
+        if (inside) {
+          const distance = Math.hypot(event.clientX - (bodyLeft + bodyWidth / 2), event.clientY - (bodyTop + bodyHeight / 2));
+          if (distance < hitDistance) { hitDistance = distance; hitActor = actor; }
+        }
+      }
+
+      const effectsEnabled = scene.dataset.effectsEnabled !== '0';
+      window.setTimeout(() => {
+        meteor.remove();
+        if (effectsEnabled) {
+          const impact = document.createElement('span');
+          impact.className = 'hell-meteor-impact';
+          impact.setAttribute('aria-hidden', 'true');
+          impact.style.left = `${impactX}px`;
+          impact.style.top = `${impactY}px`;
+          scene.append(impact);
+          window.setTimeout(() => impact.remove(), 420);
+        }
+        if (!hitActor || !scene.contains(hitActor)) return;
+
+        const sprite = hitActor.querySelector('.hell-inmate-sprite');
+        const reaction = hitActor.querySelector('.hell-inmate-reaction');
+        const baseImage = hitActor.dataset.baseImage || 'soul.svg';
+        sprite.src = baseImage === 'soul-left.svg' ? 'assets/soul-damage-left.svg' : 'assets/soul-damage.svg';
+        hitActor.classList.add('is-damaged');
+        const reactions = CONTENT.meteorReactions || ['うわー！'];
+        reaction.textContent = reactions[Math.floor(Math.random() * reactions.length)];
+        reaction.classList.add('show');
+        if (hitActor._damageTimer) window.clearTimeout(hitActor._damageTimer);
+        hitActor._damageTimer = window.setTimeout(() => {
+          if (!scene.contains(hitActor)) return;
+          sprite.src = `assets/${baseImage}`;
+          hitActor.classList.remove('is-damaged');
+          reaction.classList.remove('show');
+          hitActor._damageTimer = null;
+        }, 1500);
+      }, effectsEnabled ? 620 : 0);
+    });
   }
 
   // 判決履歴には、裁判中にプレイヤーへ表示された情報だけを掲載します。
@@ -290,7 +449,7 @@
       ? `<h3>獄卒イベント</h3><p>各期の裁判後に、獄卒から相談や報告が1件届きます。選択肢を選ぶと、求心力や地獄の状況が少し変化します。選択後には相談者の反応が表示され、選択結果はその期の間保存されます。</p>`
       : type === 'review'
       ? `<h3>期末の振り返り</h3><p>期末には地獄ごとの混雑状況、獄卒からの評価、累計の判決数、判決履歴、今期の判決傾向を確認できます。「行いの記録」では、これまでに見た行いを新しい順に確認できます。</p>`
-      : `<h3>裁判</h3><p>表示された3つの行いを確認し、送り先と刑期を選んで「判決を確定する」を押します。天国には刑期がありません。判決の妥当性や評価の考え方はChatGPTが考えたものです。</p>
+      : `<h3>裁判</h3><p>表示された3つの行いを確認し、送り先と刑期を選んで「判決を確定する」を押します。不審な申告があれば「嘘をついている」で指摘できます。判決の妥当性や評価の考え方はChatGPTが考えたものです。</p>
          <h3>期と滞在期間</h3><p>1期はゲーム上の時間単位です。亡者の基本滞在期間は収容先の地獄によって異なります。</p>`;
     showModal(`<div class="modal-heading"><h2>操作説明</h2><button class="pixel-button" onclick="EnmaUI.closeModal()">閉じる</button></div>${body}
       <h3>記録</h3><p>振り返り画面の「判決履歴」から、これまでの判決と亡者の反応を確認できます。「行いの記録」は同じモード内で引き継がれます。</p>
@@ -298,7 +457,7 @@
   }
   function showCredits() {
   showModal(`<div class="modal-heading"><h2>クレジット</h2><button class="pixel-button" onclick="EnmaUI.closeModal()">閉じる</button></div>
-    <p>閻魔大王シミュレータ（仮） 試作版 0.3.18</p>
+    <p>閻魔大王シミュレータ（仮） 試作版 0.3.20</p>
     <p>本作はAIを用いて作成した、のばまんゲームス非公式ファンゲームの試作品です。特定の人物・団体による公認作品ではありません。</p>
 
     <h3>利用について</h3>
@@ -319,9 +478,29 @@
     setText('progressText', `${Math.min(s.caseIndex + (G.verdictDone ? 1 : 0), s.periodCases)} / ${s.periodCases} 件目`);
   }
 
+  // 閻魔大王の名前だけ、表示領域を画面全体に広げます。
+  // 文字の中心は従来の名前欄の中心に置き、固定表示のためキャラクター配置には影響しません。
+  function fitCourtCharacterNames() {
+    if (page !== 'court') return;
+    const name = $('enmaName');
+    const slot = $('enmaNameSlot');
+    if (!name || !slot) return;
+    const rect = slot.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    name.style.setProperty('--enma-name-center-x', `${centerX}px`);
+    name.style.setProperty('--enma-name-center-y', `${centerY}px`);
+  }
+
+  // 画像の読み込みでキャラクターカードの高さが確定した後にも位置を合わせ直します。
+  function scheduleCourtCharacterNameFit() {
+    if (page !== 'court') return;
+    requestAnimationFrame(() => requestAnimationFrame(fitCourtCharacterNames));
+  }
+
   // 亡者・行い・入力欄を現在のゲーム状態から描画します。
   function renderCourtCase() {
-    const s = G.state, ghost = G.ghost, deeds = G.deeds;
+    const s = G.state, ghost = G.ghost, deeds = G.displayedDeeds();
     if (!s || !ghost || deeds.length !== 3) { route('index.html'); return; }
     setText('phaseLabel', `第${s.period}期`);
     setText('caseName', `第${s.period}期・第${s.caseIndex + 1}号`);
@@ -329,11 +508,23 @@
     setText('ghostName', ghost.name);
     $('enmaName').innerHTML = sanitizeNameMarkup(s.rulerName || '閻魔大王');
     const judgeSprite = document.querySelector('.character-image.judge');
-    if (judgeSprite) judgeSprite.src = avatarFile(s.rulerAvatar || 'default');
+    if (judgeSprite) {
+      const nextAvatar = avatarFile(s.rulerAvatar || 'default');
+      if (judgeSprite.getAttribute('src') !== nextAvatar) {
+        judgeSprite.addEventListener('load', scheduleCourtCharacterNameFit, { once: true });
+        judgeSprite.addEventListener('error', scheduleCourtCharacterNameFit, { once: true });
+        judgeSprite.src = nextAvatar;
+      } else if (!judgeSprite.complete) {
+        // HTML側で指定済みの初期画像がまだ読み込み中の場合も、完了後に位置を測り直します。
+        judgeSprite.addEventListener('load', scheduleCourtCharacterNameFit, { once: true });
+        judgeSprite.addEventListener('error', scheduleCourtCharacterNameFit, { once: true });
+      }
+    }
+    scheduleCourtCharacterNameFit();
     setText('ghostSub', '本日の被告人');
-    $('ghostSprite').src = ghost.sprite === 'named' ? 'assets/named-soul.svg' : 'assets/soul.svg';
+    $('ghostSprite').src = G.lieState?.isLie && G.lieState.revealed ? 'assets/soul-lie.svg' : ghost.sprite === 'named' ? 'assets/named-soul.svg' : 'assets/soul.svg';
     $('deeds').innerHTML = deeds.map((d, i) => `
-      <article class="deed-card"><span class="deed-number">${String(i + 1).padStart(2, '0')}</span>
+      <article class="deed-card ${G.lieState?.isLie && G.lieState.revealed && G.lieState.targetIndex === i ? 'deed-revealed' : ''}"><span class="deed-number">${String(i + 1).padStart(2, '0')}</span>
         <div><h3>${esc(d.name)}</h3><p>${esc(d.desc)}</p></div></article>`).join('');
     $('hellSelect').innerHTML = H.map((name, i) => `<option value="${i}">${name}</option>`).join('');
     $('hellSelect').disabled = false; $('yearsInput').disabled = false; $('yearsRange').disabled = false;
@@ -353,6 +544,12 @@
     $('verdictButton').disabled = G.verdictDone;
     $('verdictButton').textContent = '判決を確定する';
     $('verdictButton').onclick = confirmVerdict;
+    const lieButton = $('lieButton');
+    if (lieButton) {
+      lieButton.disabled = G.verdictDone || Boolean(G.lieState?.attempted);
+      lieButton.textContent = G.lieState?.attempted ? '指摘済み' : '嘘をついている';
+      lieButton.onclick = checkLie;
+    }
     renderStatus();
     // 判決確定後に更新・再読み込みされた場合も、結果ポップアップを復元します。
     if (G.verdictDone && !isDebugPreview) {
@@ -362,12 +559,33 @@
     }
   }
 
+  function checkLie() {
+    const result = G.checkLie();
+    if (!result.ok) return;
+    const lieButton = $('lieButton');
+    if (lieButton) { lieButton.disabled = true; lieButton.textContent = '指摘済み'; }
+    if (result.found) {
+      $('ghostSprite').src = 'assets/soul-lie.svg';
+      $('deeds').innerHTML = result.deeds.map((deed, index) => `
+        <article class="deed-card ${G.lieState.targetIndex === index ? 'deed-revealed' : ''}"><span class="deed-number">${String(index + 1).padStart(2, '0')}</span>
+          <div><h3>${esc(deed.name)}</h3><p>${esc(deed.desc)}</p></div></article>`).join('');
+    }
+    const title = result.found ? '嘘を見抜きました' : '嘘は確認されませんでした';
+    showModal(`<div class="modal-heading"><h2>${title}</h2><span class="case-tag">申告の確認</span></div>
+      <section class="lie-result-reaction"><p>「${esc(result.reaction)}」</p></section>
+      <div class="ai-comment lie-result-ai"><strong class="ai-name"><img src="assets/enma-ai.svg" alt=""><span>閻魔AI：</span></strong><span>${esc(result.aiComment)}</span></div>
+      ${result.found ? '<p class="muted small-text">元の行いを表示しました。判決では、明らかになった元の行いが評価対象になります。</p>' : '<p class="muted small-text">この亡者への指摘は終了しました。次の指摘はできません。</p>'}
+      <div class="button-row"><button class="pixel-button primary" onclick="EnmaUI.closeModal()">閉じる</button></div>`, true, 'lie-result-modal');
+  }
+
   function showVerdictModal(verdict) {
     const ghost = G.ghost || { name: '亡者', sprite: 'ghost' };
     const image = ghost.sprite === 'named' ? 'assets/named-soul.svg' : 'assets/soul.svg';
     const hellName = H[verdict.hell] || H[0];
     const term = verdict.hell === 0 ? 'なし' : `${Number(verdict.years).toLocaleString('ja-JP')}年`;
-    const nextLabel = G.gameOverReason() ? '結果を見る' : (G.state.caseIndex + 1 >= G.state.periodCases ? '獄卒イベントへ' : '次の亡者へ');
+    const nextLabel = G.gameOverReason() ? '結果を見る' : G.state.caseIndex + 1 >= G.state.periodCases
+      ? (G.state.mode === 'sandbox' && G.shouldSkipStaffEventThisPeriod() ? (G.shouldSkipReviewThisPeriod() ? '次の期へ' : '振り返りへ') : '獄卒イベントへ')
+      : '次の亡者へ';
     showModal(`<div class="modal-heading"><h2>判決結果</h2><span class="case-tag">判決確定</span></div>
       <div class="verdict-modal-body">
         <div class="verdict-soul-wrap">
@@ -455,7 +673,14 @@
     closeModal();
     const result = G.advanceCase();
     if (result.gameOver) { route('gameover.html'); return; }
-    if (result.event) { route('event.html'); return; }
+    if (result.event) {
+      if (G.shouldSkipStaffEventThisPeriod()) {
+        G.skipPeriodStaffEvent();
+        if (G.shouldSkipReviewThisPeriod()) { G.saveAutoSave(); nextPeriod(); }
+        else route('review.html');
+      } else route('event.html');
+      return;
+    }
     renderCourtCase();
   }
 
@@ -467,7 +692,7 @@
     setText('reviewTitle', `第${s.period}期・振り返り`);
     setText('reviewIntro', `今期の裁判が終了しました。地獄の様子を確認しましょう。`);
     setText('reviewAI', data.ai);
-    setText('staffEvaluationLabel', data.staff.label);
+    setText('staffEvaluationLabel', s.mode === 'sandbox' ? `${data.staff.label}（${Math.round(s.appeal)}）` : data.staff.label);
     setText('staffEvaluationText', data.staff.text);
     $('reviewStats').innerHTML = `
       <div class="review-stat"><small>累計の判決</small><strong>${s.history.length}件</strong></div>
@@ -476,11 +701,11 @@
       const status = G.capacityStatus(i);
       return `<button type="button" class="hell-row hell-row-button" onclick="EnmaUI.openHellView(${i + 1})" aria-label="${name}の様子を見る">
         <span class="hell-row-heading"><b>${name}</b><span class="condition">${status.label}</span></span>
-        <span class="pixel-meter"><i style="width:${Math.max(status.ratio * 100, status.count ? 4 : 0)}%"></i></span>
+        <span class="pixel-meter"><i style="width:${Math.max(Math.min(status.ratio, 10) * 100, status.count ? 4 : 0)}%"></i></span>
       </button>`;
     }).join('');
-    setText('reviewNextText', s.period === C.clearPeriod ? '5期の運営結果を確認します。' : '次の期へ進みます。');
-    $('nextPeriodButton').textContent = s.period === C.clearPeriod ? '任期満了の結果を見る' : '次の期へ';
+    setText('reviewNextText', s.mode === 'sandbox' ? '設定に応じて次の期へ進みます。' : s.period === C.clearPeriod ? '5期の運営結果を確認します。' : '次の期へ進みます。');
+    $('nextPeriodButton').textContent = s.mode === 'sandbox' ? '次の期へ' : s.period === C.clearPeriod ? '任期満了の結果を見る' : '次の期へ';
     if (!isDebugPreview) G.saveAutoSave();
   }
 
@@ -519,6 +744,7 @@
 
   function continueFromStaffEvent() {
     if (G.gameOverReason()) { route('gameover.html'); return; }
+    if (G.shouldSkipReviewThisPeriod()) { G.saveAutoSave(); nextPeriod(); return; }
     route('review.html');
   }
 
@@ -529,8 +755,8 @@
       : type === 'review'
       ? `<p>期末には地獄ごとの混雑状況、獄卒からの評価、累計の判決数、判決履歴、今期の判決傾向を確認できます。</p><p>「行いの記録」では、これまでに見た行いを新しい順に確認できます。</p>`
       : `<p>表示された3つの行いを上から確認し、亡者がどのような行いをしたのか把握しましょう。</p>
-         <p>次に、判決欄で送り先の地獄を選び、刑期（年数）を入力します。選択した地獄に応じて、設定できる刑期の上限が表示されます。内容を確認したら「判決を確定する」を押してください。</p>
-         <p>判決後は、亡者の反応や閻魔AIのコメントを確認できます。1期につき5人の亡者を裁き、期末には獄卒イベントと振り返りを経て次の期へ進みます。</p>
+         <p>次に、判決欄で送り先の地獄を選び、刑期を設定します。選択した地獄に応じて刑期の上限が変化します。内容を確認したら「判決を確定する」を押してください。</p>
+         <p>また、亡者は嘘をつくことがあります。不審な申告があれば「嘘をついている」で指摘してください。</p>
          <p>判決の妥当性や評価の考え方はChatGPTが考えたものです。実際の法律・制度を示すものではありません。</p>`;
     showModal(`<div class="modal-heading"><h2>${type === 'event' ? '獄卒イベント' : type === 'review' ? '期末の振り返り' : '裁判の判定について'}</h2></div>${text}
       <div class="button-row"><button class="pixel-button primary" onclick="EnmaUI.finishTutorial('${type}')">分かった</button><button class="pixel-button" onclick="EnmaUI.neverShowTutorial()">二度と表示しない</button></div>`, true);
@@ -649,8 +875,9 @@
 
   window.EnmaUI = {
     closeModal, openCollection, openHellView, openJudgementHistory, openEndings, openSave, saveSlot, deleteSlot, loadSlot, loadAutoSave, openHelp, showCredits, confirmClearAllData, clearAllData,
+    openSandboxSettings, previewSandboxSlider, setSandboxSetting,
     acknowledgeFirstNotice,
-    onHellChange, onRangeInput, onYearsInput, confirmVerdict, advanceAfterVerdict,
+    onHellChange, onRangeInput, onYearsInput, confirmVerdict, advanceAfterVerdict, checkLie,
     startNewGame, startCourtWithName, selectAvatar, openSaveSelection, nextPeriod, continueAfterClear, showGameOver, backToTitle, finishTutorial, neverShowTutorial, chooseStaffEvent, continueFromStaffEvent,
     debugNavigate, exitDebugMode
   };
@@ -670,6 +897,8 @@
   if (isDebugPreview && page !== 'home') ensureDebugGameState();
 
   if (page === 'home') {
+    // タイトル画面では、最後にプレイしたモードを初期選択にします。
+    if ($('modeSelect')) $('modeSelect').value = currentMode();
     $('startGame')?.addEventListener('click', startNewGame);
     $('continueGame')?.addEventListener('click', openSaveSelection);
     $('endingsButton')?.addEventListener('click', openEndings);
@@ -698,9 +927,15 @@
     else if (!isDebugPreview && G.state.caseIndex < G.state.periodCases) route('court.html');
     else {
       if (!isDebugPreview) G.loadActive(mode);
-      G.ensurePeriodStaffEvent();
-      renderStaffEvent();
-      if (!isDebugPreview && !S.neverShowTutorial() && !G.state.eventTutorialDismissed) openTutorial('event');
+      if (!isDebugPreview && G.shouldSkipStaffEventThisPeriod() && !G.state.periodStaffEvent) {
+        G.skipPeriodStaffEvent();
+        if (G.shouldSkipReviewThisPeriod()) { G.saveAutoSave(); nextPeriod(); }
+        else route('review.html');
+      } else {
+        G.ensurePeriodStaffEvent();
+        renderStaffEvent();
+        if (!isDebugPreview && !S.neverShowTutorial() && !G.state.eventTutorialDismissed) openTutorial('event');
+      }
     }
   } else if (page === 'review') {
     const mode = currentMode();
@@ -710,8 +945,13 @@
     else if (!isDebugPreview && (!G.state.periodStaffEvent || G.state.periodStaffEvent.selectedChoice === null)) route('event.html');
     else {
       if (!isDebugPreview) G.loadActive(mode);
-      renderReview();
-      if (!isDebugPreview && !S.neverShowTutorial() && !G.state.reviewTutorialDismissed) openTutorial('review');
+      if (!isDebugPreview && G.shouldSkipReviewThisPeriod()) {
+        G.saveAutoSave();
+        nextPeriod();
+      } else {
+        renderReview();
+        if (!isDebugPreview && !S.neverShowTutorial() && !G.state.reviewTutorialDismissed) openTutorial('review');
+      }
     }
   } else if (page === 'ending') {
     const mode = currentMode();
@@ -734,4 +974,5 @@
       else showGameOver(!isDebugPreview);
     }
   }
+  updateSandboxMenuButton();
 })();

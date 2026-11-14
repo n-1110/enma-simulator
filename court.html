@@ -4,7 +4,7 @@
 <body data-page="court">
 <header class="site-header">
   <div class="brand"><span class="brand-mark">閻</span><div class="brand-name">地獄庁 <span>／ 閻魔大王シミュレータ</span></div></div>
-  <nav class="top-actions">
+  <nav class="top-actions"><button class="pixel-button small hidden" id="sandboxSettingsButton" onclick="EnmaUI.openSandboxSettings()">設定</button>
     <button class="pixel-button small" onclick="EnmaUI.openSave(false)">セーブ・ロード</button>
     <button class="pixel-button small" onclick="EnmaUI.openCollection()">行いの記録</button>
     <button class="pixel-button small" onclick="EnmaUI.openHelp('court')">説明</button>
@@ -29,11 +29,11 @@
         <div id="termInputArea"><label for="yearsInput">刑期（年）</label><input id="yearsInput" type="text" inputmode="numeric" value="1" autocomplete="off" oninput="EnmaUI.onYearsInput()"><p id="termCapNote" class="muted small-text term-cap-note">第一地獄の上限：100年</p></div>
       </div>
       <div class="range-wrap" id="rangeWrap"><label for="yearsRange">刑期スライダー</label><input id="yearsRange" type="range" min="1" max="100" step="1" value="1" oninput="EnmaUI.onRangeInput()"></div><p id="heavenTermNote" class="muted small-text hidden">天国へ送る場合、刑期の指定はありません。</p>
-      <div class="row between verdict-controls"><span class="muted small-text">行いを確認して判決を決めてください。</span><button class="pixel-button primary" id="verdictButton" onclick="EnmaUI.confirmVerdict()">判決を確定する</button></div>
+      <div class="row between verdict-controls"><span class="muted small-text">行いを確認して判決を決めてください。</span><div class="row verdict-action-buttons"><button class="pixel-button" id="lieButton" onclick="EnmaUI.checkLie()">嘘をついている</button><button class="pixel-button primary" id="verdictButton" onclick="EnmaUI.confirmVerdict()">判決を確定する</button></div></div>
     </section>
     <div class="character-card">
       <img class="character-image judge" src="assets/judge.svg" alt="閻魔大王のドット絵">
-      <div><div class="character-name" id="enmaName">閻魔大王</div><p class="character-sub">あなた</p></div>
+      <div class="character-label"><div class="character-name-slot" id="enmaNameSlot"><div class="enma-name-viewport"><div class="character-name enma-name-text" id="enmaName">閻魔大王</div></div></div><p class="character-sub">あなた</p></div>
     </div>
   </section>
 </main>

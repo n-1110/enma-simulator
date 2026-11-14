@@ -10,8 +10,41 @@ window.EnmaGame = (() => {
   let verdictDone = false;
   let lastAiText = '';
   let lastVerdict = null;
+  let lieState = null;
 
   const AI = CONTENT.ai.verdict;
+  const SANDBOX_DEFAULTS = Object.freeze({
+    skipStaffEvent: false,
+    skipReview: false,
+    casesPerPeriod: 5,
+    namedNpcChance: 5,
+    namedNpcLimit: 2,
+    lieChance: 15,
+    hellDisplayDivisor: 1,
+    hellDisplayMax: 50,
+    hellEffects: true
+  });
+
+  // 設定値は保存データから読み込むため、範囲外・欠損値を安全な初期値へ補正します。
+  function normalizeSandboxSettings(raw = {}) {
+    const number = (key, fallback, min, max, step = 1) => {
+      const value = Number(raw[key]);
+      if (!Number.isFinite(value)) return fallback;
+      const clamped = Math.max(min, Math.min(max, value));
+      return Math.round(clamped / step) * step;
+    };
+    return {
+      skipStaffEvent: typeof raw.skipStaffEvent === 'boolean' ? raw.skipStaffEvent : SANDBOX_DEFAULTS.skipStaffEvent,
+      skipReview: typeof raw.skipReview === 'boolean' ? raw.skipReview : SANDBOX_DEFAULTS.skipReview,
+      casesPerPeriod: number('casesPerPeriod', SANDBOX_DEFAULTS.casesPerPeriod, 1, 10),
+      namedNpcChance: number('namedNpcChance', SANDBOX_DEFAULTS.namedNpcChance, 0, 100),
+      namedNpcLimit: number('namedNpcLimit', SANDBOX_DEFAULTS.namedNpcLimit, 0, 5),
+      lieChance: number('lieChance', SANDBOX_DEFAULTS.lieChance, 0, 100),
+      hellDisplayDivisor: [1, 2, 3, 4].includes(Number(raw.hellDisplayDivisor)) ? Number(raw.hellDisplayDivisor) : SANDBOX_DEFAULTS.hellDisplayDivisor,
+      hellDisplayMax: number('hellDisplayMax', SANDBOX_DEFAULTS.hellDisplayMax, 30, 80, 5),
+      hellEffects: typeof raw.hellEffects === 'boolean' ? raw.hellEffects : SANDBOX_DEFAULTS.hellEffects
+    };
+  }
 
   const pick = list => list[Math.floor(Math.random() * list.length)];
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -48,10 +81,11 @@ window.EnmaGame = (() => {
   function newState(mode) {
     return {
       mode, period: 1, caseIndex: 0, periodCases: C.casesPerPeriod, rulerName: '', rulerAvatar: 'default', periodStaffEvent: null, periodAiText: '',
+      sandboxSettings: mode === 'sandbox' ? normalizeSandboxSettings() : null, periodSandboxRules: null, periodNamedLimit: null,
       courtTutorialDismissed: false, reviewTutorialDismissed: false, eventTutorialDismissed: false,
       hellInmates: createInitialInmates(), hellCapacityAdjustments: Array(8).fill(0),
       appeal: C.appealStart, history: [], collection: EnmaStorage.getCollection(mode),
-      periodSevere: 0, periodLight: 0, periodMismatch: 0, periodReturnCount: 0, totalReturnCount: 0, cleared: false
+      periodSevere: 0, periodLight: 0, periodMismatch: 0, periodReturnCount: 0, totalReturnCount: 0, periodNamedCount: 0, cleared: false
     };
   }
 
@@ -61,19 +95,47 @@ window.EnmaGame = (() => {
     return EnmaStorage.setActive(state.mode, { state: clone(state), context: getContext() });
   }
   function getContext() {
-    return { ghost: clone(ghost), deedIds: deeds.map(d => d.id), verdictDone, lastAiText, lastVerdict: clone(lastVerdict) };
+    return {
+      ghost: clone(ghost), deedIds: deeds.map(d => d.id), verdictDone, lastAiText,
+      lastVerdict: clone(lastVerdict), lieState: clone(lieState)
+    };
   }
-  function setContext(context) {
-    ghost = context.ghost;
-    deeds = context.deedIds.map(id => D.DEED_BY_ID[id]).filter(Boolean);
-    verdictDone = context.verdictDone;
-    lastAiText = context.lastAiText;
-    lastVerdict = context.lastVerdict;
+  function countNamedInCurrentPeriod() {
+    if (!state) return 0;
+    const namedIds = new Set((D.NAMED_NPC_DEEDS || []).map(deed => deed.id));
+    const recorded = (state.history || []).filter(item => item.period === state.period && (
+      item.namedNpc === true || (item.deeds || []).some(id => namedIds.has(id))
+    )).length;
+    const currentRecorded = (state.history || []).some(item => item.period === state.period && item.caseNumber === state.caseIndex + 1);
+    return recorded + (ghost?.sprite === 'named' && !currentRecorded ? 1 : 0);
+  }
+  function setContext(context = {}) {
+    ghost = context.ghost || null;
+    deeds = (Array.isArray(context.deedIds) ? context.deedIds : []).map(id => D.DEED_BY_ID[id]).filter(Boolean);
+    verdictDone = Boolean(context.verdictDone);
+    lastAiText = context.lastAiText || '';
+    lastVerdict = context.lastVerdict || null;
+    // 0.3.18までの保存データにはlieStateがないため、嘘なしの状態として読み込みます。
+    lieState = context.lieState && typeof context.lieState === 'object'
+      ? { isLie: Boolean(context.lieState.isLie), attempted: Boolean(context.lieState.attempted), revealed: Boolean(context.lieState.revealed), caughtByPlayer: Boolean(context.lieState.caughtByPlayer), lieDeedId: context.lieState.lieDeedId || null, targetIndex: Number.isInteger(context.lieState.targetIndex) ? context.lieState.targetIndex : -1 }
+      : { isLie: false, attempted: false, revealed: false, caughtByPlayer: false, lieDeedId: null, targetIndex: -1 };
+    if (state?.mode === 'sandbox') {
+      state.sandboxSettings = normalizeSandboxSettings(state.sandboxSettings || {});
+      if (!state.periodSandboxRules || typeof state.periodSandboxRules !== 'object') {
+        state.periodSandboxRules = {
+          skipStaffEvent: state.sandboxSettings.skipStaffEvent,
+          skipReview: state.sandboxSettings.skipReview
+        };
+      }
+      if (!Number.isInteger(state.periodNamedLimit)) state.periodNamedLimit = state.sandboxSettings.namedNpcLimit;
+      if (!Number.isInteger(state.periodCases)) state.periodCases = state.sandboxSettings.casesPerPeriod;
+    }
+    if (state && !Number.isInteger(state.periodNamedCount)) state.periodNamedCount = countNamedInCurrentPeriod();
   }
 
   function newGame(mode = 'normal') {
     state = newState(mode);
-    ghost = null; deeds = []; verdictDone = false; lastAiText = ''; lastVerdict = null;
+    ghost = null; deeds = []; verdictDone = false; lastAiText = ''; lastVerdict = null; lieState = null;
     beginPeriod();
     saveActive();
     return state;
@@ -85,9 +147,22 @@ window.EnmaGame = (() => {
     state.periodLight = 0;
     state.periodMismatch = 0;
     state.periodReturnCount = 0;
+    state.periodNamedCount = 0;
     state.periodStaffEvent = null;
     state.periodAiText = pick(CONTENT.ai.periodStart).replaceAll('{period}', String(state.period));
-    state.periodCases = C.casesPerPeriod;
+    if (state.mode === 'sandbox') {
+      state.sandboxSettings = normalizeSandboxSettings(state.sandboxSettings || {});
+      state.periodCases = state.sandboxSettings.casesPerPeriod;
+      state.periodNamedLimit = state.sandboxSettings.namedNpcLimit;
+      state.periodSandboxRules = {
+        skipStaffEvent: state.sandboxSettings.skipStaffEvent,
+        skipReview: state.sandboxSettings.skipReview
+      };
+    } else {
+      state.periodCases = C.casesPerPeriod;
+      state.periodNamedLimit = null;
+      state.periodSandboxRules = null;
+    }
     createGhost();
     saveActive();
   }
@@ -111,19 +186,75 @@ window.EnmaGame = (() => {
   function createGhost() {
     verdictDone = false;
     lastVerdict = null;
-    // 第5期までの各期5人目は、出現率に関係なく名前付き亡者にします。
-    const guaranteedNamed = state.period <= C.clearPeriod && state.caseIndex === C.casesPerPeriod - 1;
-    if (guaranteedNamed || Math.random() < C.namedNpcChance) {
+    lieState = { isLie: false, attempted: false, revealed: false, caughtByPlayer: false, lieDeedId: null, targetIndex: -1 };
+
+    let shouldSpawnNamed = false;
+    if (state.mode === 'sandbox') {
+      // サンドボックスでは全員を抽選対象とし、固定出現は行いません。
+      const namedLimit = Number.isInteger(state.periodNamedLimit) ? state.periodNamedLimit : 2;
+      const chance = normalizeSandboxSettings(state.sandboxSettings || {}).namedNpcChance / 100;
+      shouldSpawnNamed = state.periodNamedCount < namedLimit && Math.random() < chance;
+    } else {
+      const isFifthCaseInClearPeriod = state.period <= C.clearPeriod && state.caseIndex === C.casesPerPeriod - 1;
+      const namedLimit = state.period <= C.clearPeriod ? 1 : 2;
+      const canSpawnNamed = state.periodNamedCount < namedLimit;
+      // 第1～5期は5人目が確定。1～4人目は期内最大1人、第6期以降は期内最大2人です。
+      const guaranteedNamed = isFifthCaseInClearPeriod;
+      shouldSpawnNamed = guaranteedNamed || (canSpawnNamed && Math.random() < C.namedNpcChance);
+    }
+
+    if (shouldSpawnNamed) {
       const npc = pick(D.NAMED_NPC_TEMPLATES);
       const unique = D.DEED_BY_ID[npc.deed.id];
       deeds = [unique, ...regularDeeds([unique.id]).filter(d => d.id !== unique.id).slice(0, 2)];
       ghost = { id: npc.id, name: npc.name, tag: '特別NPC', sprite: 'named', specialReaction: npc.reaction || '' };
+      state.periodNamedCount = (state.periodNamedCount || 0) + 1;
     } else {
       deeds = regularDeeds();
       const names = ['名もなき亡者','元・自称発明家','元・経営者','元・権力者','元・自動化推進委員','元・アーティスト'];
       ghost = { id: `soul-${Date.now()}-${Math.random().toString(16).slice(2)}`, name: pick(names), tag: '一般亡者', sprite: 'ghost' };
+      assignLieIfEligible();
     }
     saveActive();
+  }
+
+  // 最も重い行いを、targetHell=0の誤字データに置き換えて表示する嘘を抽選します。
+  function assignLieIfEligible() {
+    const lieChance = state.mode === 'sandbox' ? normalizeSandboxSettings(state.sandboxSettings || {}).lieChance / 100 : C.lieChance;
+    if (!deeds.length || !D.LIE_DEEDS?.length || Math.random() >= lieChance) return;
+    const maxTarget = Math.max(...deeds.map(deed => Number(deed.targetHell) || 0));
+    if (maxTarget <= 0) return;
+    const candidateIndices = deeds.map((deed, index) => ({ deed, index }))
+      .filter(item => Number(item.deed.targetHell) === maxTarget).map(item => item.index);
+    if (!candidateIndices.length) return;
+    lieState = {
+      isLie: true, attempted: false, revealed: false, caughtByPlayer: false,
+      lieDeedId: pick(D.LIE_DEEDS).id, targetIndex: pick(candidateIndices)
+    };
+  }
+
+  function displayedDeeds() {
+    const result = deeds.slice();
+    if (lieState?.isLie && !lieState.revealed && Number.isInteger(lieState.targetIndex)) {
+      const lieDeed = D.LIE_DEED_BY_ID[lieState.lieDeedId];
+      if (lieDeed && lieState.targetIndex >= 0 && lieState.targetIndex < result.length) result[lieState.targetIndex] = lieDeed;
+    }
+    return result;
+  }
+
+  // 嘘の指摘は1人につき1回だけ。成功時は元の行いを画面に戻します。
+  function checkLie() {
+    if (verdictDone || !lieState || lieState.attempted) return { ok: false, reason: 'already-attempted' };
+    lieState.attempted = true;
+    const found = Boolean(lieState.isLie);
+    if (found) {
+      lieState.revealed = true;
+      lieState.caughtByPlayer = true;
+    }
+    saveActive();
+    const reaction = found ? pick(CONTENT.lie.caughtReaction) : pick(CONTENT.lie.falseAccusationReaction);
+    const aiComment = found ? CONTENT.lie.caughtAi : CONTENT.lie.falseAccusationAi;
+    return { ok: true, found, deeds: displayedDeeds(), reaction, aiComment };
   }
 
   // 入力を32bit符号付き整数として扱います。範囲を超えた値は仕様どおり折り返します。
@@ -140,8 +271,8 @@ window.EnmaGame = (() => {
   function targetHell() { return Math.max(...deeds.map(d => d.targetHell)); }
 
   // 送り先の差と刑期を評価します。具体的な評価ルールはプレイヤーには公開しません。
-  function evaluate(hell, years) {
-    const targets = deeds.map(d => Number(d.targetHell) || 0).sort((a, b) => b - a);
+  function evaluate(hell, years, evaluationDeeds = displayedDeeds(), lieCaught = false) {
+    const targets = evaluationDeeds.map(d => Number(d.targetHell) || 0).sort((a, b) => b - a);
     const target = targets[0] ?? 0;
     const lesserDeedsSum = (targets[1] || 0) + (targets[2] || 0);
     const gap = hell - target;
@@ -157,8 +288,11 @@ window.EnmaGame = (() => {
     // 地獄の選択そのものに対する評価を先に決めます。
     let tooLightByGround = gap <= -(slightGap + 1);
     let slightlyLightByGround = gap === -slightGap || (gap === -1 && hasHeavySupportingDeeds);
-    const tooHarshByGround = gap >= slightGap + 1;
-    const slightlyHarshByGround = gap === slightGap || (gap === 1 && !hasHeavySupportingDeeds);
+    // 嘘を見抜いた場合だけ、案Aとして重い方向の許容範囲を1段階広げます。
+    const tooHarshByGround = lieCaught ? gap >= slightGap + 2 : gap >= slightGap + 1;
+    const slightlyHarshByGround = lieCaught
+      ? gap === slightGap + 1 || (gap === 1 && !hasHeavySupportingDeeds)
+      : gap === slightGap || (gap === 1 && !hasHeavySupportingDeeds);
 
     let judgementLabel = tooShort ? '極端に軽い'
       : tooLong ? '極端に重い'
@@ -238,7 +372,11 @@ window.EnmaGame = (() => {
       years = parsed.value;
     }
 
-    const ev = evaluate(hell, years);
+    const judgedDeeds = displayedDeeds();
+    const wasCaught = Boolean(lieState?.isLie && lieState.caughtByPlayer);
+    const lieWasMissed = Boolean(lieState?.isLie && !wasCaught);
+    const falseAccusation = Boolean(!lieState?.isLie && lieState?.attempted);
+    const ev = evaluate(hell, years, judgedDeeds, wasCaught);
 
     if (ev.returnToLife) {
       recordReturnToLife();
@@ -257,10 +395,13 @@ window.EnmaGame = (() => {
     if (ev.tooLightByGround) penalty += C.penaltyTooLightHell;
     if (ev.tooHarshByGround) penalty += C.penaltyTooHarsh;
     if (ev.tooLong) penalty += C.penaltyTooHarsh;
-    if (penalty > 0) state.appeal -= penalty;
+    if (penalty > 0) state.appeal = Math.max(0, state.appeal - penalty);
+    // 嘘に関する変動は通常の判決評価による減点と独立して加算します。
+    const lieAppealDelta = wasCaught ? 1 : lieWasMissed ? -2 : falseAccusation ? -1 : 0;
+    if (lieAppealDelta !== 0) state.appeal = Math.max(0, Math.min(100, state.appeal + lieAppealDelta));
     if (ev.extremeLight || ev.extremeHarsh) state.periodSevere++;
     if (ev.judgementLabel.includes('軽い')) state.periodLight++;
-    if (Math.abs(ev.gap) >= C.hellJudgementTolerance + 1 || ev.shortTermAdjusted) state.periodMismatch++;
+    if (ev.judgementLabel !== '妥当' || ev.shortTermAdjusted) state.periodMismatch++;
 
     // 新しく見た行いだけを先頭へ追加します。再登場した行いの位置は変えません。
     const newlySeen = deeds.filter(deed => !state.collection.includes(deed.id)).map(deed => deed.id);
@@ -269,18 +410,34 @@ window.EnmaGame = (() => {
 
     lastAiText = makeAiComment(ev, hell);
     const standardReaction = reactionFor(ev, years, hell);
-    const reaction = ghost?.specialReaction && !ev.extremeLight && !ev.extremeHarsh && !ev.returnToLife
+    let reaction = ghost?.specialReaction && !ev.extremeLight && !ev.extremeHarsh && !ev.returnToLife
       ? ghost.specialReaction : standardReaction;
-    lastVerdict = { hell, years, reaction, aiText: lastAiText, returnedToLife: ev.returnToLife };
+    let lieOutcome = 'none';
+    if (wasCaught) {
+      lieOutcome = 'caught';
+      reaction = pick(CONTENT.lie.caughtVerdictReaction);
+      lastAiText = CONTENT.lie.caughtVerdictAi;
+    } else if (lieWasMissed) {
+      lieOutcome = 'missed';
+      reaction = pick(CONTENT.lie.missedReaction);
+      lastAiText = CONTENT.lie.missedAi;
+    } else if (falseAccusation) {
+      lieOutcome = 'false-accusation';
+      reaction = pick(CONTENT.lie.falseAccusationVerdictReaction);
+      lastAiText = CONTENT.lie.falseAccusationVerdictAi;
+    }
+    // 判決確定後は、見抜けなかった嘘も結果画面で発覚した状態にします。
+    if (lieState?.isLie) lieState.revealed = true;
+    lastVerdict = { hell, years, reaction, aiText: lastAiText, returnedToLife: ev.returnToLife, lieOutcome, lieAppealDelta };
     // 判決履歴には、実際にプレイヤーへ表示された情報だけを保存します。
     // 判定の内部基準や隠し評価に関する情報は履歴画面へ出しません。
     state.history.push({
-      period: state.period, caseNumber: state.caseIndex + 1, ghostName: ghost?.name || '亡者',
+      period: state.period, caseNumber: state.caseIndex + 1, ghostName: ghost?.name || '亡者', namedNpc: ghost?.sprite === 'named',
       hell, years, deeds: deeds.map(d => d.id), reaction, aiText: lastAiText
     });
     verdictDone = true;
     saveActive();
-    return { ok: true, years, hell, evaluation: ev, aiText: lastAiText, reaction, gameOver: gameOverReason() };
+    return { ok: true, years, hell, evaluation: ev, aiText: lastAiText, reaction, lieOutcome, lieAppealDelta, gameOver: gameOverReason() };
   }
 
   // 結果ポップアップの「次の亡者へ」から呼ばれ、次の裁判または期末画面へ進みます。
@@ -299,15 +456,18 @@ window.EnmaGame = (() => {
   function capacityStatus(index) {
     const count = state.hellInmates[index].length;
     const capacity = Math.max(1, C.hellCapacity[index] + (state.hellCapacityAdjustments?.[index] || 0));
-    const ratio = count / capacity;
+    const rawRatio = count / capacity;
+    const ratio = state.mode === 'sandbox' ? rawRatio : Math.min(1, rawRatio);
     let label = '余裕あり';
     if (ratio >= 1) label = '収容限界';
     else if (ratio >= C.capacityWarningRatio) label = 'かなり混雑';
     else if (ratio >= 0.4) label = 'やや混雑';
-    return { count, capacity, ratio: Math.min(1, ratio), label };
+    if (state.mode === 'sandbox' && ratio >= 1) label = `収容超過 ${Math.round(ratio * 100)}%`;
+    return { count, capacity, ratio, label };
   }
 
   function gameOverReason() {
+    if (state?.mode === 'sandbox') return null;
     const full = state.hellInmates.findIndex((list, i) => list.length > Math.max(1, C.hellCapacity[i] + (state.hellCapacityAdjustments?.[i] || 0)));
     if (full >= 0) return {
       id: 'hell_capacity', title: `${H[full + 1]}の収容限界を超えました`,
@@ -419,7 +579,7 @@ window.EnmaGame = (() => {
 
   function finishPeriod() {
     advanceTime();
-    if (state.period === C.clearPeriod && !state.cleared) {
+    if (state.mode !== 'sandbox' && state.period === C.clearPeriod && !state.cleared) {
       state.cleared = true;
       saveActive();
       return { ending: true, endingId: 'clear' };
@@ -433,6 +593,41 @@ window.EnmaGame = (() => {
     state.period++;
     state.cleared = false;
     beginPeriod();
+  }
+
+  // サンドボックス設定はゲーム状態に含め、手動・自動・アクティブセーブすべてで引き継ぎます。
+  function getSandboxSettings() {
+    if (state?.mode !== 'sandbox') return null;
+    state.sandboxSettings = normalizeSandboxSettings(state.sandboxSettings || {});
+    return clone(state.sandboxSettings);
+  }
+
+  function setSandboxSetting(name, value) {
+    if (state?.mode !== 'sandbox') return false;
+    const current = normalizeSandboxSettings(state.sandboxSettings || {});
+    const allowed = Object.keys(SANDBOX_DEFAULTS);
+    if (!allowed.includes(name)) return false;
+    current[name] = value;
+    state.sandboxSettings = normalizeSandboxSettings(current);
+    return saveActive();
+  }
+
+  function shouldSkipStaffEventThisPeriod() {
+    return state?.mode === 'sandbox' && state.periodSandboxRules?.skipStaffEvent === true;
+  }
+
+  function shouldSkipReviewThisPeriod() {
+    return state?.mode === 'sandbox' && state.periodSandboxRules?.skipReview === true;
+  }
+
+  // 設定により獄卒イベントを飛ばした場合も、振り返り画面の進行条件を満たす記録を残します。
+  function skipPeriodStaffEvent() {
+    if (state?.mode !== 'sandbox') return false;
+    state.periodStaffEvent = {
+      speaker: '獄卒', title: 'イベントをスキップしました', text: 'サンドボックスの設定により、今期の獄卒イベントはスキップされました。',
+      choices: [], selectedChoice: -1, skipped: true, reaction: '', result: '', effectSummary: '', aiComment: ''
+    };
+    return saveActive();
   }
 
   // 手動セーブ枠。画面名も保存するため、ロード後に同じ画面へ戻せます。
@@ -491,7 +686,7 @@ window.EnmaGame = (() => {
   }
 
   function clearAndReturnTitle() {
-    state = null; ghost = null; deeds = []; verdictDone = false; lastAiText = ''; lastVerdict = null;
+    state = null; ghost = null; deeds = []; verdictDone = false; lastAiText = ''; lastVerdict = null; lieState = null;
   }
 
   function loadActive(mode) {
@@ -506,12 +701,13 @@ window.EnmaGame = (() => {
   function setFromActiveContext(context) { setContext(context || {}); }
 
   return {
-    newGame, beginPeriod, createGhost, advanceCase, judge, parseInt32, evaluate, targetHell, stayPeriodsForHell, setRulerName, setRulerAvatar, dismissTutorial,
+    newGame, beginPeriod, createGhost, advanceCase, judge, checkLie, displayedDeeds, parseInt32, evaluate, targetHell, stayPeriodsForHell, setRulerName, setRulerAvatar, dismissTutorial,
+    getSandboxSettings, setSandboxSetting, shouldSkipStaffEventThisPeriod, shouldSkipReviewThisPeriod, skipPeriodStaffEvent,
     gameOverReason, reviewData, capacityStatus, ensurePeriodStaffEvent, choosePeriodStaffEvent, finishPeriod, continueAfterClear,
     saveActive, saveSlot, loadSlot, saveAutoSave, loadAutoSave, loadActive, getContext, setContext,
     setFromActiveContext, contextForSave,
     get state() { return state; }, get ghost() { return ghost; }, get deeds() { return deeds; },
-    get verdictDone() { return verdictDone; }, get lastAiText() { return lastAiText; },
+    get verdictDone() { return verdictDone; }, get lastAiText() { return lastAiText; }, get lieState() { return lieState; },
     get lastVerdict() { return lastVerdict; }, set lastAiText(value) { lastAiText = value; },
     clearAndReturnTitle, escapeHtml: esc
   };
